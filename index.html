@@ -1,0 +1,176 @@
+<html>
+	<head>
+		<style>
+			pre {
+		    white-space: pre-wrap;       /* CSS 3 */
+		    white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+		    white-space: -pre-wrap;      /* Opera 4-6 */
+		    white-space: -o-pre-wrap;    /* Opera 7 */
+		    word-wrap: break-word;       /* Internet Explorer 5.5+ */
+			}
+		</style>
+	</head>
+	<body>
+
+		
+		<script src="//code.jquery.com/jquery-1.11.2.min.js"></script>
+		<script src="//code.jquery.com/jquery-migrate-1.2.1.min.js"></script>
+		<script src="https://apis.google.com/js/client.js?onload=init"></script>
+		<script type="text/javascript">
+
+			//Get Google API Key
+			var google_api_key = "PUT_API_HERE";
+
+			var data = [];
+			var data_id = [];
+			var limit = 1000;
+
+			var return_results = 10;
+			var q = ""
+
+			function get_youtube_api() {
+				// SETS THE API KEY
+				gapi.client.setApiKey(google_api_key)
+
+				// GETS THE YOUTUBE API, THEN CALL YOUR NEXT FUNCTION
+				gapi.client.load('youtube', 'v3').then(youtube_search_list);
+
+			}
+
+
+			function youtube_search_list(token) {
+				// Parameter: Token - used to get the next/previous set of results
+				// for this example, used to get the next set of results
+
+				var obj = {
+					q: q, // q = query keywords to be used for search
+					part: 'id', // part = attributes needed to be read, for this example, only the id is needed to be retrieved
+					type: 'video', // type = type of results to be read, for this example, only video results will be retrieved
+					maxResults: return_results // maxResults = the maximum number of results retrieved per set, can be changed above
+				}
+
+				if (token) { // just checking if token exists
+					obj.pageToken = token // if token exists, it will be used to get the next/previous set of results
+				}
+
+				// prepare a call to the api youtube.search.list to retrieve the data
+				var request = gapi.client.youtube.search.list(obj)
+
+				// execute the call to youtube.search.list api
+				request.execute(execute)
+
+				function execute(response) {
+					// Do anything from the response data
+					// currently, it gets the ids from the list of videos retrieved and then appends them into a string separated by commas
+					// it also gets the top related videos from each of the retrieved videos
+
+					
+
+					var ids = ""
+					for (var i in response.result.items) {
+			    		ids = ids + response.result.items[i].id.videoId + ","			    	
+			    	}	
+
+				    // after all this call the function youtube_video_list to get the real video data
+				    // it also sends the nextPageToken to get the next set of results
+
+				    youtube_videos_list(ids, response.result.nextPageToken)
+				}
+
+			}
+
+			function youtube_search_list_related(id) {
+				// Parameter: id - used as query to get related videos from this id
+				
+				var obj = {
+					relatedToVideoId: id, // instead of using the query q, we use the id of a video as a means to get a set of related videos
+			    	part: 'id', // part = attributes needed to be read, for this example, only the id is needed to be retrieved
+					type: 'video', // type = type of results to be read, for this example, only video results will be retrieved
+					maxResults: return_results // maxResults = the maximum number of results retrieved per set, can be changed above
+				}
+
+				// prepare a call to the api youtube.search.list to retrieve the data
+				var request = gapi.client.youtube.search.list(obj)
+
+				// execute the call to youtube.search.list api
+				
+				function execute(response) {
+					// Do anything from the response data
+					// currently, it gets the ids from the list of videos retrieved and then appends them into a string separated by commas
+					console.log(response.result)
+
+					var ids = ""
+					var id_array = []
+					for (var i in response.result.items) {
+						if (id_array.indexOf(response.result.items[i].id.videoId)<0) {
+							ids = ids + response.result.items[i].id.videoId + ","
+							id_array.push(response.result.items[i].id.videoId)
+						}
+			    	}
+
+			    	// after all this call the function youtube_video_list to get the real video data
+			    	youtube_videos_list(ids)
+				}
+			}
+
+			function youtube_videos_list(ids, token){
+				// Parameter: ids - a string of video ids separated by commas
+				// Parameter: token - used for getting the next set of results when youtube_search_list is called
+
+				var data_obj = {
+					part: 'id, snippet, contentDetails, statistics, status, topicDetails, recordingDetails', // part = a string of attributes to be retrieved
+					id: ids, // id = a string of ids separated by commas to be retrieved
+					maxResults: return_results // maxResults = the maximum number of results retrieved per set, can be changed above
+				}
+
+				// prepare a call to the api youtube.videos.list to retrieve the data
+				var request = gapi.client.youtube.videos.list(data_obj)
+
+				// execute the call to youtube.videos.list api
+				request.execute(execute)
+
+				function execute(response) {
+					for (var i in response.result.items) {
+
+						// Checks if the video is in the data array to prevent duplication 
+						if (data_id.indexOf(response.result.items[i].id)<0) {
+
+							// Add the id of the video in a separate array for duplication checking
+							data_id.push(response.result.items[i].id)
+
+							// Add the video data
+							data.push(response.result.items[i])
+
+							// Just for printing on html
+							var obj = response.result.items[i]
+							$("#results").append("<div><h4>"+obj.snippet.title+"</h4><h5>recordingDetails</h5><pre style='width:100%'>"+JSON.stringify(obj.recordingDetails)+"</pre><h5>contentDetails</h5><pre style='width:100%'>"+JSON.stringify(obj.contentDetails)+"</pre><h5>snippet</h5><pre style='width:100%'>"+JSON.stringify(obj.snippet)+"</pre><h5>Statistics</h5><ul><li>commentCount:"+obj.statistics.commentCount+"</li><li>dislikeCount: "+obj.statistics.dislikeCount+"</li><li>likeCount: "+obj.statistics.likeCount+"</li><li>viewCount: "+obj.statistics.viewCount+"</li></ul></div>")
+						}
+					}
+
+					// Checks if data array is already in its limit
+					if (data.length <= limit && token) { // if not, retrieve the other videos
+							youtube_search_list(token)
+						}
+						else { // else just print all data in console
+							console.log(data)
+						}
+				}
+			}
+
+			function search() {
+				q = $('#query').val();
+				get_youtube_api();	
+			}
+
+			// $("#search").click(search)
+		</script>
+
+		<input id="query" name="query"><br/>
+		<button id="search" onclick="search()">Search</button><br/>
+		Results:
+		<div id="results">
+
+		</div>
+	</body>
+
+</html>
